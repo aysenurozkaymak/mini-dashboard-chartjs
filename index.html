@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mini Dashboard • Chart.js</title>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+  <style>
+    :root{
+      --bg:#0b1220;--card:#111a2b;--muted:#8fa0bd;--text:#e9f0ff;--primary:#2a6cf7;--good:#22c55e;--bad:#ef4444;--grid: #1b2842;
+    }
+    :root.light{
+      --bg:#f6f8fd;--card:#ffffff;--muted:#5b6b88;--text:#0b1220;--primary:#2a6cf7;--good:#16a34a;--bad:#dc2626;--grid:#e7ecf7;
+    }
+    *,*::before,*::after{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, sans-serif}
+    .container{max-width:1100px;margin:28px auto;padding:0 16px}
+    header{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:16px}
+    h1{font-size:20px;margin:0}
+    .controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+    .card{background:var(--card);border:1px solid var(--grid);border-radius:14px;padding:12px}
+    .grid{display:grid;gap:12px}
+    @media(min-width:900px){.grid{grid-template-columns: 2fr 1fr}}
+    label{font-size:12px;color:var(--muted)}
+    select,input,button{background:#0e1930;border:1px solid var(--grid);color:var(--text);border-radius:10px;padding:8px 10px}
+    :root.light select,:root.light input,:root.light button{background:#fff}
+    button{cursor:pointer}
+    .badges{display:flex;gap:8px;flex-wrap:wrap}
+    .badge{font-size:12px;background:var(--grid);padding:4px 8px;border-radius:999px;color:var(--muted)}
+    .row{display:flex;gap:8px;flex-wrap:wrap}
+    .row > *{flex:1}
+    .footer{margin-top:18px;color:var(--muted);font-size:12px;text-align:center}
+    .table{width:100%;border-collapse:collapse}
+    .table th,.table td{padding:8px 10px;border-bottom:1px dashed var(--grid);text-align:left}
+    .kpi{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+    .kpi .card{display:flex;flex-direction:column;gap:4px}
+    .kpi .value{font-weight:700;font-size:20px}
+    .kpi .delta.up{color:var(--good)}
+    .kpi .delta.down{color:var(--bad)}
+    .right{display:flex;align-items:center;gap:8px}
+    .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>📊 Mini Dashboard <span class="badge">Chart.js</span></h1>
+      <div class="right">
+        <button id="themeBtn" title="Açık/Koyu tema">Tema: <span id="themeLbl">Koyu</span></button>
+        <button id="exportPngBtn" title="Grafiği PNG olarak indir">Grafik PNG</button>
+        <button id="exportCsvBtn" title="Filtrelenmiş veriyi CSV indir">CSV</button>
+      </div>
+    </header>
+
+    <section class="card" aria-labelledby="filtersTitle">
+      <h2 id="filtersTitle" class="sr-only">Filtreler</h2>
+      <div class="row">
+        <div>
+          <label for="chartType">Grafik türü</label>
+          <select id="chartType" aria-label="Grafik türü">
+            <option value="line">Çizgi</option>
+            <option value="bar">Çubuk</option>
+            <option value="pie">Pasta (kategori)</option>
+          </select>
+        </div>
+        <div>
+          <label for="category">Kategori</label>
+          <select id="category" aria-label="Kategori">
+            <option value="all">Tümü</option>
+          </select>
+        </div>
+        <div>
+          <label for="dateFrom">Başlangıç tarihi</label>
+          <input id="dateFrom" type="date" />
+        </div>
+        <div>
+          <label for="dateTo">Bitiş tarihi</label>
+          <input id="dateTo" type="date" />
+        </div>
+        <div>
+          <label for="fileInput">CSV yükle (isteğe bağlı)</label>
+          <input id="fileInput" type="file" accept=".csv" />
+        </div>
+      </div>
+    </section>
+
+    <div class="grid">
+      <section class="card">
+        <canvas id="mainChart" height="120" aria-label="Ana grafik" role="img"></canvas>
+      </section>
+      <aside class="kpi">
+        <div class="card">
+          <span class="label">Toplam Tutar</span>
+          <span class="value" id="kpiTotal">-</span>
+          <span class="delta" id="kpiMoM">-</span>
+        </div>
+        <div class="card">
+          <span class="label">Günlük Ortalama</span>
+          <span class="value" id="kpiAvg">-</span>
+          <span class="delta" id="kpiCount">-</span>
+        </div>
+        <div class="card">
+          <span class="label">En Yüksek Gün</span>
+          <span class="value" id="kpiMax">-</span>
+          <span class="delta" id="kpiMaxDate">-</span>
+        </div>
+      </aside>
+    </div>
+
+    <section class="card">
+      <h2 class="sr-only">Veri Tablosu</h2>
+      <div class="badges" id="activeFilters"></div>
+      <table class="table" id="dataTable"></table>
+    </section>
+
+    <p class="footer">Single‑file demo • GitHub Pages/Netlify ile anında deploy. CSV şablonu: <code>date,category,amount</code></p>
+  </div>
+
+<script>
+  // ---- Demo verisi (YYYY-MM-DD, category, amount) ----
+  let baseData = [
+    {date:"2025-07-28", category:"Gıda", amount: 320},
+    {date:"2025-07-29", category:"Gıda", amount: 180},
+    {date:"2025-07-30", category:"Ulaşım", amount: 90},
+    {date:"2025-08-01", category:"Giyim", amount: 400},
+    {date:"2025-08-02", category:"Gıda", amount: 250},
+    {date:"2025-08-03", category:"Eğlence", amount: 220},
+    {date:"2025-08-04", category:"Ulaşım", amount: 70},
+    {date:"2025-08-05", category:"Gıda", amount: 310},
+    {date:"2025-08-06", category:"Diğer", amount: 120},
+    {date:"2025-08-07", category:"Eğlence", amount: 260},
+    {date:"2025-08-08", category:"Gıda", amount: 150},
+    {date:"2025-08-09", category:"Giyim", amount: 520},
+    {date:"2025-08-10", category:"Ulaşım", amount: 110},
+    {date:"2025-08-11", category:"Diğer", amount: 80},
+    {date:"2025-08-12", category:"Gıda", amount: 340},
+    {date:"2025-08-13", category:"Eğlence", amount: 300},
+    {date:"2025-08-14", category:"Gıda", amount: 210},
+    {date:"2025-08-15", category:"Ulaşım", amount: 95},
+    {date:"2025-08-16", category:"Giyim", amount: 430},
+    {date:"2025-08-17", category:"Eğlence", amount: 190},
+    {date:"2025-08-18", category:"Gıda", amount: 285}
+  ];
+
+  // ---- Durum ----
+  const els = {
+    chartType: document.getElementById('chartType'),
+    category: document.getElementById('category'),
+    dateFrom: document.getElementById('dateFrom'),
+    dateTo: document.getElementById('dateTo'),
+    dataTable: document.getElementById('dataTable'),
+    activeFilters: document.getElementById('activeFilters'),
+    themeBtn: document.getElementById('themeBtn'),
+    themeLbl: document.getElementById('themeLbl'),
+    exportPngBtn: document.getElementById('exportPngBtn'),
+    exportCsvBtn: document.getElementById('exportCsvBtn'),
+    fileInput: document.getElementById('fileInput'),
+    kpiTotal: document.getElementById('kpiTotal'),
+    kpiMoM: document.getElementById('kpiMoM'),
+    kpiAvg: document.getElementById('kpiAvg'),
+    kpiCount: document.getElementById('kpiCount'),
+    kpiMax: document.getElementById('kpiMax'),
+    kpiMaxDate: document.getElementById('kpiMaxDate'),
+  };
+
+  // Kategorileri populate et
+  function refreshCategoryOptions(data){
+    const cats = Array.from(new Set(data.map(d=>d.category))).sort();
+    els.category.innerHTML = '<option value="all">Tümü</option>' + cats.map(c=>`<option value="${c}">${c}</option>`).join('');
+  }
+
+  // Tarih alanlarını varsayılanla
+  function initDates(data){
+    const dates = data.map(d=>d.date).sort();
+    els.dateFrom.value = dates[0];
+    els.dateTo.value = dates[dates.length-1];
+  }
+
+  // Filtre uygula
+  function applyFilters(){
+    const type = els.chartType.value;
+    const cat = els.category.value;
+    const from = els.dateFrom.value || '1900-01-01';
+    const to = els.dateTo.value || '9999-12-31';
+
+    let filtered = baseData.filter(d=> d.date>=from && d.date<=to);
+    if(cat !== 'all') filtered = filtered.filter(d=> d.category === cat);
+
+    // Etiketler
+    els.activeFilters.innerHTML = '';
+    const pills = [];
+    if(cat !== 'all') pills.push(`Kategori: ${cat}`);
+    if(els.dateFrom.value) pills.push(`Başlangıç: ${els.dateFrom.value}`);
+    if(els.dateTo.value) pills.push(`Bitiş: ${els.dateTo.value}`);
+    els.activeFilters.innerHTML = pills.map(p=>`<span class="badge">${p}</span>`).join('');
+
+    // KPI'lar
+    const total = filtered.reduce((s,x)=>s+Number(x.amount||0),0);
+    const days = new Set(filtered.map(x=>x.date)).size || 1;
+    const avg = total / days;
+    const maxItem = filtered.reduce((m,x)=> x.amount>m.amount?x:m, {amount:-Infinity});
+    els.kpiTotal.textContent = tl(total);
+    els.kpiAvg.textContent = tl(avg);
+    if(maxItem && isFinite(maxItem.amount)){
+      els.kpiMax.textContent = tl(maxItem.amount);
+      els.kpiMaxDate.textContent = maxItem.date || '-';
+    } else { els.kpiMax.textContent='-'; els.kpiMaxDate.textContent='-'; }
+    els.kpiCount.textContent = `${filtered.length} kayıt`;
+    els.kpiMoM.textContent = trendMoM(filtered);
+
+    // Tablo
+    renderTable(filtered);
+
+    // Grafik
+    renderChart(type, filtered);
+  }
+
+  function tl(n){
+    try{ return new Intl.NumberFormat('tr-TR',{style:'currency',currency:'TRY',maximumFractionDigits:0}).format(n); }
+    catch{ return `${Math.round(n)} TL`; }
+  }
+
+  function trendMoM(data){
+    // Basit: son 7 gün toplam vs önceki 7 gün toplam
+    const byDate = [...data].sort((a,b)=> a.date.localeCompare(b.date));
+    const last7 = byDate.slice(-7);
+    const prev7 = byDate.slice(-14,-7);
+    const s1 = last7.reduce((s,x)=>s+x.amount,0);
+    const s0 = prev7.reduce((s,x)=>s+x.amount,0);
+    if(s0<=0 || s1<=0) return '—';
+    const pct = ((s1-s0)/s0)*100;
+    const cls = pct>=0? 'up' : 'down';
+    const sign = pct>=0? '▲' : '▼';
+    return `<span class="delta ${cls}">${sign} ${pct.toFixed(1)}%</span>`;
+  }
+
+  function renderTable(rows){
+    const head = `<tr><th>Tarih</th><th>Kategori</th><th>Tutar</th></tr>`;
+    const body = rows.map(r=>`<tr><td>${r.date}</td><td>${r.category}</td><td>${tl(r.amount)}</td></tr>`).join('');
+    els.dataTable.innerHTML = head + body;
+  }
+
+  // Grafik durumu
+  let chart;
+  function renderChart(type, rows){
+    const ctx = document.getElementById('mainChart').getContext('2d');
+    if(chart) chart.destroy();
+
+    if(type === 'pie'){
+      // Kategoriye göre dağılım (toplam tutar)
+      const sums = {};
+      for(const r of rows){ sums[r.category] = (sums[r.category]||0) + r.amount; }
+      const labels = Object.keys(sums);
+      const data = Object.values(sums);
+      chart = new Chart(ctx, {
+        type: 'pie',
+        data: { labels, datasets: [{ data }]},
+        options: baseOptions()
+      });
+      return;
+    }
+
+    // Zaman serisi: tarihe göre toplam
+    const agg = {};
+    for(const r of rows){ agg[r.date] = (agg[r.date]||0) + r.amount; }
+    const labels = Object.keys(agg).sort();
+    const data = labels.map(d=>agg[d]);
+
+    chart = new Chart(ctx, {
+      type: type, // 'line' | 'bar'
+      data: { labels, datasets: [{ label: 'Tutar', data, tension: 0.3 }]},
+      options: baseOptions(true)
+    });
+  }
+
+  function baseOptions(timeScale=false){
+    const gridColor = getComputedStyle(document.documentElement).getPropertyValue('--grid').trim();
+    const textColor = getComputedStyle(document.documentElement).getPropertyValue('--muted').trim();
+    return {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: textColor } } },
+      scales: timeScale ? {
+        x: { grid: { color: gridColor }, ticks:{ color: textColor } },
+        y: { grid: { color: gridColor }, ticks:{ color: textColor } }
+      } : {}
+    };
+  }
+
+  // Tema
+  function setTheme(mode){
+    const root = document.documentElement;
+    if(mode==='light'){ root.classList.add('light'); els.themeLbl.textContent='Açık'; }
+    else { root.classList.remove('light'); els.themeLbl.textContent='Koyu'; }
+    applyFilters();
+  }
+
+  // PNG export
+  els.exportPngBtn.addEventListener('click', ()=>{
+    if(!chart) return;
+    const url = chart.toBase64Image('image/png', 1);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'dashboard-chart.png'; a.click();
+  });
+
+  // CSV export (filtreli)
+  els.exportCsvBtn.addEventListener('click', ()=>{
+    const cat = els.category.value;
+    const from = els.dateFrom.value || '1900-01-01';
+    const to = els.dateTo.value || '9999-12-31';
+    let filtered = baseData.filter(d=> d.date>=from && d.date<=to);
+    if(cat !== 'all') filtered = filtered.filter(d=> d.category === cat);
+    const rows = [['date','category','amount'], ...filtered.map(r=>[r.date,r.category,r.amount])];
+    const csv = rows.map(r=> r.map(v=>`"${String(v).replaceAll('"','\"')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'filtered-data.csv'; a.click(); URL.revokeObjectURL(url);
+  });
+
+  // CSV yükleme
+  els.fileInput.addEventListener('change', (e)=>{
+    const file = e.target.files && e.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = () =>{
+      try{
+        const text = reader.result.toString();
+        const rows = text.split(/\r?\n/).filter(Boolean).map(r=> r.split(',').map(s=> s.replace(/^\"|\"$/g,'').trim()));
+        const [h1,h2,h3] = rows.shift() || [];
+        if((h1||'').toLowerCase()!=='date' || (h2||'').toLowerCase()!=='category' || (h3||'').toLowerCase()!=='amount'){
+          alert('CSV başlıkları şunlar olmalı: date,category,amount'); return;
+        }
+        const parsed = rows.map(r=>({date:r[0],category:r[1],amount:Number(r[2])||0})).filter(r=>r.date && r.category);
+        if(parsed.length===0){ alert('Geçerli satır bulunamadı.'); return; }
+        baseData = parsed;
+        refreshCategoryOptions(baseData);
+        initDates(baseData);
+        applyFilters();
+      }catch(err){ console.error(err); alert('CSV okunamadı.'); }
+    };
+    reader.readAsText(file, 'utf-8');
+  });
+
+  // Etkileşimler
+  [els.chartType, els.category, els.dateFrom, els.dateTo].forEach(el=> el.addEventListener('change', applyFilters));
+  els.themeBtn.addEventListener('click', ()=>{
+    const isLight = document.documentElement.classList.contains('light');
+    setTheme(isLight? 'dark' : 'light');
+  });
+
+  // İlk yükleme
+  refreshCategoryOptions(baseData);
+  initDates(baseData);
+  setTheme('dark');
+</script>
+</body>
+</html>
