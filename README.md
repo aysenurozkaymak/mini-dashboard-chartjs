@@ -3,8 +3,10 @@
 Bu proje, **Chart.js** kullanılarak geliştirilmiş tek dosyalık bir **mini dashboard prototipidir**.  
 Kısa sürede interaktif grafikler, KPI kutuları ve filtreleme özelliklerini göstermesi için hazırlanmıştır.  
 
-![Dashboard Screenshot](screenshot.png) <!-- buraya ekran görüntünüzü koyabilirsiniz -->
 
+
+
+<img width="1056" height="959" alt="image" src="https://github.com/user-attachments/assets/5cbcc8eb-dd35-4885-8428-8221b4263828" />
 ---
 
 ## 🚀 Özellikler
@@ -28,7 +30,5 @@ Kısa sürede interaktif grafikler, KPI kutuları ve filtreleme özelliklerini g
    2025-08-02,Ulaşım,90
    2025-08-03,Giyim,400
 
-
-<img width="1056" height="959" alt="image" src="https://github.com/user-attachments/assets/5cbcc8eb-dd35-4885-8428-8221b4263828" />
 
 
